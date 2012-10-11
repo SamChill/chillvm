@@ -20,7 +20,7 @@ for line in f:
 
     if opcode == 'SETL':
         args[0] = args[0].strip('$')
-        ins = pack('BBH', opcode_table[opcode], int(args[0]), int(args[1]))
+        ins = pack('>BBH', opcode_table[opcode], int(args[0]), int(args[1]))
     elif opcode == 'MUL' or opcode == 'SUB':
         if '$' not in args[-1]:
             opcode_offset = 1
@@ -29,7 +29,7 @@ for line in f:
 
         args = [ arg.strip('$') for arg in args ]
 
-        ins = pack('BBBB', opcode_table[opcode]+opcode_offset, 
+        ins = pack('>BBBB', opcode_table[opcode]+opcode_offset, 
                 int(args[0]), int(args[1]), int(args[2]))
     elif opcode == 'BP':
         args[0] = args[0].strip('$')
@@ -39,7 +39,7 @@ for line in f:
         else:
             opcode_offset = 0
         
-        ins = pack('BBH', opcode_table[opcode]+opcode_offset, 
+        ins = pack('>BBH', opcode_table[opcode]+opcode_offset, 
                 int(args[0]), int(args[1]))
     else:
         print 'unknown opcode', opcode
@@ -49,6 +49,6 @@ for line in f:
     instructions.append(ins)
 
 fout = open(argv[2],'w')
-fout.write(pack('L', len(instructions)))
+fout.write(pack('>L', len(instructions)))
 fout.write(''.join(instructions))
 fout.close()
