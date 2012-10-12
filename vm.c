@@ -2,6 +2,10 @@
 #include <inttypes.h>
 #include <stdlib.h>
 
+#define DEBUG 0
+#define debug_print(fmt, ...) \
+                do { if (DEBUG) fprintf(stderr, fmt, __VA_ARGS__); } while (0)
+
 struct vm_t {
     void     *mem;
     uint64_t reg[256];
@@ -72,10 +76,10 @@ struct vm_t *loader(int argc, char **argv, size_t ram_size)
     }
     fread(&len, sizeof(len), 1, fh);
     len = swap_uint32(len);
-    printf("loading \"%s\" (%"PRIu32" mem long)\n", argv[0], len);
+    debug_print("loading \"%s\" (%"PRIu32" mem long)\n", argv[0], len);
 
     if (len*sizeof(uint32_t) > ram_size) {
-        printf("error: program larger than main memory\n");
+        fprintf(stderr, "error: program larger than vm memory\n");
         return NULL;
     }
 
@@ -138,99 +142,106 @@ void execute_vm(struct vm_t *vm, long max_steps)
 
         switch (opcode) {
             case 0x00:
-                printf("opcode: TRAP %"PRIu8" %"PRIu8" %"PRIu8"\n",
+                debug_print("opcode: TRAP %"PRIu8" %"PRIu8" %"PRIu8"\n",
                         X, Y, Z);
-                return;
+                if (X == 0 && Y == 0 && Z == 0) return;
+
+                //write string pointed to in $255 to stdout
+                if (X == 0 && Y == 7 && Z == 1) {
+                    uint64_t ptr = swap_uint64(vm->reg[255]);
+                    fputs((char *)vm->mem + ptr/8, stdout);
+                }
+                break;
             //case 0xF0:
-            //    printf("opcode: JMP %u\n", XYZ);
+            //    debug_print("opcode: JMP %u\n", XYZ);
             //    vm->ip += XYZ;
             //    break;
             //case 0xF1:
-            //    printf("opcode: JMP -%u\n", XYZ);
+            //    debug_print("opcode: JMP -%u\n", XYZ);
             //    vm->ip -= XYZ;
             //    break;
             case 0x18:
-                printf("opcode: MUL $%"PRIu8",$%"PRIu8",$%"PRIu8"\n", X, Y, Z);
+                debug_print("opcode: MUL $%"PRIu8",$%"PRIu8",$%"PRIu8"\n", X, Y, Z);
                 SWAP_YZ;
                 vm->reg[X] = vm->reg[Y] * vm->reg[Z];
                 SWAP_XYZ;
                 break;
             case 0x19:
-                printf("opcode: MUL $%"PRIu8",$%"PRIu8",%"PRIu8"\n", X, Y, Z);
+                debug_print("opcode: MUL $%"PRIu8",$%"PRIu8",%"PRIu8"\n", X, Y, Z);
                 SWAP_Y;
-                printf("        MUL %"PRIu64" %"PRIu64" %"PRIu8"\n",
+                debug_print("        MUL %"PRIu64" %"PRIu64" %"PRIu8"\n",
                         vm->reg[X], vm->reg[Y], Z);
                 vm->reg[X] = vm->reg[Y] * Z;
                 SWAP_XY;
                 break;
             case 0x20:
-                printf("opcode: ADD $%"PRIu8",$%"PRIu8",$%"PRIu8"\n", X, Y, Z);
+                debug_print("opcode: ADD $%"PRIu8",$%"PRIu8",$%"PRIu8"\n", X, Y, Z);
                 SWAP_YZ;
                 vm->reg[X] = vm->reg[Y] + vm->reg[Z];
                 SWAP_XYZ;
                 break;
             case 0x21:
-                printf("opcode: ADD $%"PRIu8",$%"PRIu8",%"PRIu8"\n", X, Y, Z);
+                debug_print("opcode: ADD $%"PRIu8",$%"PRIu8",%"PRIu8"\n", X, Y, Z);
                 SWAP_Y;
                 vm->reg[X] = vm->reg[Y] + Z;
                 SWAP_XY;
                 break;
             case 0x24:
-                printf("opcode: SUB $%"PRIu8",$%"PRIu8",$%"PRIu8"\n", X, Y, Z);
+                debug_print("opcode: SUB $%"PRIu8",$%"PRIu8",$%"PRIu8"\n", X, Y, Z);
                 SWAP_YZ;
                 vm->reg[X] = vm->reg[Y] - vm->reg[Z];
                 SWAP_XYZ;
                 break;
             case 0x25:
-                printf("opcode: SUB $%"PRIu8",$%"PRIu8",%"PRIu8"\n", X, Y, Z);
+                debug_print("opcode: SUB $%"PRIu8",$%"PRIu8",%"PRIu8"\n", X, Y, Z);
                 SWAP_Y;
-                printf("        SUB %"PRIu64",%"PRIu64",%"PRIu8"\n", 
+                debug_print("        SUB %"PRIu64",%"PRIu64",%"PRIu8"\n", 
                         vm->reg[X], vm->reg[Y], Z);
                 vm->reg[X] = vm->reg[Y] - Z;
                 SWAP_XY;
                 break;
             //case 0x40:
-            //    printf("opcode: BN  $%"PRIu8",%"PRIu16"\n", X, YZ);
+            //    debug_print("opcode: BN  $%"PRIu8",%"PRIu16"\n", X, YZ);
             //    if (vm->reg[X] < 0) vm->ip += YZ;
             //    break;
             //case 0x41:
-            //    printf("opcode: BN  $%"PRIu8",-%"PRIu16"\n", X, YZ);
+            //    debug_print("opcode: BN  $%"PRIu8",-%"PRIu16"\n", X, YZ);
             //    if (vm->reg[X] < 0) vm->ip -= YZ;
             //    break;
             case 0x42:
-                printf("opcode: BZ  $%"PRIu8",%"PRIu16"\n", X, YZ);
+                debug_print("opcode: BZ  $%"PRIu8",%"PRIu16"\n", X, YZ);
                 SWAP_X;
                 if (vm->reg[X] == 0) vm->ip += YZ;
                 SWAP_X;
                 break;
             case 0x43:
-                printf("opcode: BZ  $%"PRIu8",-%"PRIu16"\n", X, YZ);
+                debug_print("opcode: BZ  $%"PRIu8",-%"PRIu16"\n", X, YZ);
                 SWAP_X;
                 if (vm->reg[X] == 0) vm->ip -= YZ;
                 SWAP_X;
                 break;
             case 0x44:
-                printf("opcode: BP  $%"PRIu8",%"PRIu16"\n", X, YZ);
+                debug_print("opcode: BP  $%"PRIu8",%"PRIu16"\n", X, YZ);
                 SWAP_X;
                 if (vm->reg[X] > 0) vm->ip += YZ;
                 SWAP_X;
                 break;
             case 0x45:
-                printf("opcode: BP  $%"PRIu8",-%"PRIu16"\n", X, YZ);
+                debug_print("opcode: BP  $%"PRIu8",-%"PRIu16"\n", X, YZ);
                 SWAP_X;
-                printf("        BP  %"PRIu64",-%"PRIu16"\n", vm->reg[X], YZ);
+                debug_print("        BP  %"PRIu64",-%"PRIu16"\n", vm->reg[X], YZ);
                 if (vm->reg[X] > 0) vm->ip -= YZ;
                 SWAP_X;
                 break;
             case 0xE3:
-                printf("opcode: SETL $%"PRIu8",%"PRIu16"\n", X, YZ);
+                debug_print("opcode: SETL $%"PRIu8",%"PRIu16"\n", X, YZ);
                 SWAP_X;
-                printf("        SETL %"PRIu64",%"PRIu16"\n", vm->reg[X], YZ);
+                debug_print("        SETL %"PRIu64",%"PRIu16"\n", vm->reg[X], YZ);
                 vm->reg[X] = YZ;
                 SWAP_X;
                 break;
             default:
-                printf("error: unknown opcode: %.2"PRIx8"\n", opcode);
+                debug_print("error: unknown opcode: %.2"PRIx8"\n", opcode);
                 exit(1);
         }
 
@@ -246,19 +257,19 @@ void execute_vm(struct vm_t *vm, long max_steps)
 int main(int argc, char **argv)
 {
     if (argc < 2) {
-        printf("usage: %s EXE\n", argv[0]);
+        fprintf(stderr, "usage: %s EXE\n", argv[0]);
         return 1;
     }
     struct vm_t *vm = loader(argc-1, argv+1, 1024*1024);
 
     if (vm == NULL) {
-        printf("error: problem loading %s\n", argv[1]);
+        fprintf(stderr, "error: problem loading %s\n", argv[1]);
         return 1;
     }
 
     execute_vm(vm, 10000);
 
-    printf("reg[0] = %"PRIu64"\n", swap_uint64(vm->reg[0]));
+    //debug_print("reg[0] = %"PRIu64"\n", swap_uint64(vm->reg[0]));
 
     destroy_vm(vm);
 
